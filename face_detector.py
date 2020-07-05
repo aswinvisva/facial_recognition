@@ -5,6 +5,7 @@ from tensorflow.keras.applications.inception_v3 import preprocess_input
 from tensorflow.keras.applications.resnet50 import ResNet50
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from sklearn.metrics.pairwise import cosine_similarity
 from tensorflow.keras.layers import Flatten, Dropout, Dense
 from tensorflow.keras.models import Model
 import tensorflow as tf
@@ -111,10 +112,17 @@ class Detector:
             img = img.reshape(1, 128, 128, 3)
             des = self.model.predict(preprocess_input(img))
 
+        distribution = {}
+
         for key, face in self.face_vectors.items():
-            dist = np.linalg.norm(face - des)
-            print("Testing against: %s, distance: %s" % (key, str(dist)))
-            print(dist)
+            similarity = cosine_similarity(face, des)
+            print("Testing against: %s, similarity: %s" % (key, str(similarity)))
+
+            distribution[key] = similarity[0][0]
+
+        print(distribution)
+
+        return distribution
 
 
 if __name__ == '__main__':
@@ -124,13 +132,16 @@ if __name__ == '__main__':
     jaime_image = cv2.imread("images/jaime_fox.jpg")
     watson_test = cv2.imread("images/emma_watson_test.jpg")
     watson_image = cv2.imread("images/emma_watson.jpg")
+    messi_image = cv2.imread("images/lionel_messi.jpg")
+    messi_image_test = cv2.imread("images/lionel_messi_test.jpg")
 
     dct = Detector()
     dct.add_face(shaq_image, "Shaq")
     dct.add_face(watson_image, "Emma Watson")
     dct.add_face(jaime_image, "Jaime Foxx")
+    dct.add_face(messi_image, "Lionel Messi")
 
     dct.check_face(watson_test)
     dct.check_face(jaime_test)
     dct.check_face(shaq_test)
-    dct.check_face(jaime_test)
+    dct.check_face(messi_image_test)
