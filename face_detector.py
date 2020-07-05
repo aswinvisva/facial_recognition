@@ -1,14 +1,26 @@
 import cv2
 import numpy as np
+from tensorflow.keras.applications.inception_v3 import InceptionV3
+from tensorflow.keras.applications.inception_v3 import preprocess_input
+from tensorflow.keras.applications.resnet50 import ResNet50
 from sklearn.decomposition import PCA
 from sklearn.discriminant_analysis import LinearDiscriminantAnalysis
+from tensorflow.keras.layers import Flatten, Dropout, Dense
+from tensorflow.keras.models import Model
+import tensorflow as tf
+import cv2 as cv
+
+gpus = tf.config.experimental.list_physical_devices('GPU')
+for gpu in gpus:
+    tf.config.experimental.set_memory_growth(gpu, True)
+
 
 class Detector:
 
     def __init__(self):
         self.roi = None
         self.face_vectors = {}
-        self.method = 1
+        self.method = 3
         self.model = None
 
     def get_roi(self, image):
@@ -17,16 +29,15 @@ class Detector:
         face_cascade = cv2.CascadeClassifier("haarcascade_frontalface_default.xml")
         faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
-        if(len(faces) > 1):
+        if (len(faces) > 1):
             raise Exception("There are multiple faces in the image!")
 
-
         for (x, y, w, h) in faces:
-            roi_gray = gray[y:y + h, x:x + w]
-            cv2.imshow("Face", roi_gray)
+            roi = image[y:y + h, x:x + w]
+            cv2.imshow("Face", roi)
             cv2.waitKey(0)
 
-        self.roi = roi_gray
+        self.roi = roi
 
     def get_keypoints(self):
 
@@ -48,9 +59,25 @@ class Detector:
             X = np.array(self.roi).flatten().reshape(1, -1)
             Y = [len(self.face_vectors)]
             clf = LinearDiscriminantAnalysis()
-            clf.fit(X,Y)
+            clf.fit(X, Y)
             self.model = clf
             des = len(self.face_vectors)
+        elif self.method == 3:
+            xception_base_model = InceptionV3(include_top=False, weights="imagenet", input_shape=(128, 128, 3),
+                                              pooling='avg')
+
+            for layer in xception_base_model.layers:
+                layer.trainable = False
+
+            x = Flatten()(xception_base_model.output)
+
+            self.model = Model(inputs=xception_base_model.input, outputs=x)
+            self.model.summary()
+
+            img = cv.resize(self.roi, (128, 128))
+            img = img.reshape(1, 128, 128, 3)
+
+            des = self.model.predict(preprocess_input(img))
 
         print(des)
         return des
@@ -62,7 +89,8 @@ class Detector:
         self.face_vectors[name] = face
 
     def check_face(self, image):
-        if(len(self.face_vectors) == 0): return False
+        if len(self.face_vectors) == 0:
+            return False
 
         self.get_roi(image)
 
@@ -78,16 +106,31 @@ class Detector:
             des = pca.singular_values_
         elif self.method == 2:
             self.model.predict(np.array(self.roi).reshape(-1, 1))
+        elif self.method == 3:
+            img = cv.resize(self.roi, (128, 128))
+            img = img.reshape(1, 128, 128, 3)
+            des = self.model.predict(preprocess_input(img))
 
         for key, face in self.face_vectors.items():
             dist = np.linalg.norm(face - des)
+            print("Testing against: %s, distance: %s" % (key, str(dist)))
             print(dist)
 
 
 if __name__ == '__main__':
     shaq_image = cv2.imread("images/shaq.jpg")
-    emma_watson_image = cv2.imread("images/shaq_test.jpg")
+    shaq_test = cv2.imread("images/shaq_test.jpg")
+    jaime_test = cv2.imread("images/jaime_fox_test.jpg")
+    jaime_image = cv2.imread("images/jaime_fox.jpg")
+    watson_test = cv2.imread("images/emma_watson_test.jpg")
+    watson_image = cv2.imread("images/emma_watson.jpg")
 
     dct = Detector()
     dct.add_face(shaq_image, "Shaq")
-    dct.check_face(emma_watson_image)
+    dct.add_face(watson_image, "Emma Watson")
+    dct.add_face(jaime_image, "Jaime Foxx")
+
+    dct.check_face(watson_test)
+    dct.check_face(jaime_test)
+    dct.check_face(shaq_test)
+    dct.check_face(jaime_test)
