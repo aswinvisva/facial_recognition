@@ -4,7 +4,7 @@ This project uses the TensorFlow InceptionV3 architecture with ImageNet weights 
 
 Ex.
 
-When the following image of shaq was passed to the system:
+When the following image of Shaquille O'Neal was passed to the system:
 ![alt-text](https://github.com/aswinvisva/facial_recognition/blob/master/images/shaq_test.jpg)
 
 The returned probability distribution was:
